@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/spyder007/terraform-provider-spydersoft-identity/internal/client"
+	"github.com/spydersoft-consulting/terraform-provider-spydersoft-identity/internal/client"
 )
 
 var (

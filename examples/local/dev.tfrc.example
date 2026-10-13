@@ -3,7 +3,7 @@
 #   $env:TF_CLI_CONFIG_FILE = "$PWD\dev.tfrc"
 provider_installation {
   dev_overrides {
-    "registry.terraform.io/spyder007/spydersoft-identity" = "C:/Users/<you>/go/bin"
+    "registry.terraform.io/spydersoft-consulting/spydersoft-identity" = "C:/Users/<you>/go/bin"
   }
   direct {}
 }

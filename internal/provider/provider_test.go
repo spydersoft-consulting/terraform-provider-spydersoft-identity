@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 
-	"github.com/spyder007/terraform-provider-spydersoft-identity/internal/provider"
+	"github.com/spydersoft-consulting/terraform-provider-spydersoft-identity/internal/provider"
 )
 
 // Acceptance tests run against a real identity server and create/destroy

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     spydersoftidentity = {
-      source = "registry.terraform.io/spyder007/spydersoft-identity"
+      source = "registry.terraform.io/spydersoft-consulting/spydersoft-identity"
     }
   }
 }

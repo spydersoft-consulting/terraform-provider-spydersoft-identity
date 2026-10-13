@@ -1,4 +1,4 @@
-module github.com/spyder007/terraform-provider-spydersoft-identity
+module github.com/spydersoft-consulting/terraform-provider-spydersoft-identity
 
 go 1.25.8
 

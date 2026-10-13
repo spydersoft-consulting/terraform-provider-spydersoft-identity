@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
-	"github.com/spyder007/terraform-provider-spydersoft-identity/internal/provider"
+	"github.com/spydersoft-consulting/terraform-provider-spydersoft-identity/internal/provider"
 )
 
 // version is set at release time via -ldflags.
@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	err := providerserver.Serve(context.Background(), provider.New(version), providerserver.ServeOpts{
-		Address: "registry.terraform.io/spyder007/spydersoft-identity",
+		Address: "registry.terraform.io/spydersoft-consulting/spydersoft-identity",
 		Debug:   debug,
 	})
 	if err != nil {

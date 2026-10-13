@@ -32,7 +32,7 @@ provider "spydersoftidentity" {
 
 terraform {
   required_providers {
-    spydersoftidentity = { source = "registry.terraform.io/spyder007/spydersoft-identity" }
+    spydersoftidentity = { source = "registry.terraform.io/spydersoft-consulting/spydersoft-identity" }
   }
 }
 
@@ -109,8 +109,8 @@ Import uses the natural key (scope name) via `GET /api/v1/Scopes/by-name/{name}`
 
 ## Notes
 
-- The module path and registry address (`registry.terraform.io/spyder007/spydersoft-identity`)
-  are placeholders until the org rename settles; changing them is a find/replace
+- The module path and registry address (`registry.terraform.io/spydersoft-consulting/spydersoft-identity`)
+  follow the GitHub org, which is being renamed; changing them is a find/replace
   in `go.mod`, `main.go` and the imports.
 - Avoid publishing a release to the public registry before the name is final.
 
