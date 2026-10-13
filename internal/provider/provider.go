@@ -112,7 +112,12 @@ func (p *identityProvider) Resources(_ context.Context) []func() resource.Resour
 }
 
 func (p *identityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewScopeDataSource,
+		NewApiResourceDataSource,
+		NewIdentityResourceDataSource,
+		NewClientDataSource,
+	}
 }
 
 func valueOrEnv(v types.String, env string) string {

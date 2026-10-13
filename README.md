@@ -113,3 +113,42 @@ Import uses the natural key (scope name) via `GET /api/v1/Scopes/by-name/{name}`
   are placeholders until the org rename settles; changing them is a find/replace
   in `go.mod`, `main.go` and the imports.
 - Avoid publishing a release to the public registry before the name is final.
+
+## Data sources
+
+`spydersoftidentity_scope`, `spydersoftidentity_api_resource`,
+`spydersoftidentity_identity_resource` (look up by `name`) and
+`spydersoftidentity_client` (look up by `client_id`) expose the same attributes
+as the matching resources, read-only:
+
+```hcl
+data "spydersoftidentity_scope" "email" {
+  name = "email"
+}
+
+output "email_scope_claims" {
+  value = data.spydersoftidentity_scope.email.user_claims
+}
+```
+
+## Acceptance tests
+
+`go test ./...` runs only the unit tests; the acceptance tests skip unless
+`TF_ACC=1`. They create and destroy real `tf-acc-*` objects (scopes, API
+resources, identity resources, a disabled client and secrets) on whatever server
+the `SPYDERSOFT_IDENTITY_*` variables point at, so prefer a local stack.
+
+```powershell
+# SPYDERSOFT_IDENTITY_* set as in "Local development"
+$env:TF_ACC = "1"
+$env:TF_ACC_TERRAFORM_PATH   = (Get-Command tofu).Source   # OpenTofu
+$env:TF_ACC_PROVIDER_NAMESPACE = "hashicorp"
+$env:TF_ACC_PROVIDER_HOST      = "registry.opentofu.org"
+go test ./internal/provider -count=1 -v
+```
+
+With HashiCorp Terraform, leave the three `TF_ACC_*` provider/path variables
+unset (or point `TF_ACC_TERRAFORM_PATH` at `terraform`). Each test covers
+create, in-place update, data source lookup and import (with state
+verification). A failed run can leave `tf-acc-*` objects behind; delete them in
+the admin UI.
