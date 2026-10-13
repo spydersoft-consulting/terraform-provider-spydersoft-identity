@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      acceptance:
+        description: Also run the acceptance tests against the configured identity server
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and unit test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Check go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Unit tests
+        run: go test ./... -count=1 -race
+
+  # Acceptance tests create and delete real objects, so they never run on
+  # push/PR. Trigger them by hand against a server you are happy to modify.
+  acceptance:
+    name: Acceptance tests
+    if: github.event_name == 'workflow_dispatch' && inputs.acceptance
+    needs: build
+    runs-on: ubuntu-latest
+    environment: acceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: Acceptance tests
+        env:
+          TF_ACC: "1"
+          TF_ACC_PROVIDER_NAMESPACE: hashicorp
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+          SPYDERSOFT_IDENTITY_URL: ${{ secrets.SPYDERSOFT_IDENTITY_URL }}
+          SPYDERSOFT_IDENTITY_TOKEN_URL: ${{ secrets.SPYDERSOFT_IDENTITY_TOKEN_URL }}
+          SPYDERSOFT_IDENTITY_CLIENT_ID: ${{ secrets.SPYDERSOFT_IDENTITY_CLIENT_ID }}
+          SPYDERSOFT_IDENTITY_CLIENT_SECRET: ${{ secrets.SPYDERSOFT_IDENTITY_CLIENT_SECRET }}
+        run: |
+          export TF_ACC_TERRAFORM_PATH="$(which tofu)"
+          go test ./internal/provider -count=1 -v -timeout 20m
