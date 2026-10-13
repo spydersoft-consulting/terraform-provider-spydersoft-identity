@@ -90,16 +90,16 @@ func newTestClient(t *testing.T, h http.Handler) *Client {
 	return &Client{baseURL: srv.URL, http: srv.Client()}
 }
 
-func TestSyncScopeClaims(t *testing.T) {
+func TestSyncChildrenClaims(t *testing.T) {
 	api := newFakeScopeAPI()
 	c := newTestClient(t, api)
 	ctx := context.Background()
 
-	if err := c.SyncScopeClaims(ctx, 1, []string{"a", "b"}); err != nil {
+	if err := c.SyncChildren(ctx, "/api/v1/scopes/1/claims", []map[string]string{{"type": "a"}, {"type": "b"}}); err != nil {
 		t.Fatal(err)
 	}
 	// Drop "a", keep "b" (would 409 if re-created), add "c".
-	if err := c.SyncScopeClaims(ctx, 1, []string{"b", "c"}); err != nil {
+	if err := c.SyncChildren(ctx, "/api/v1/scopes/1/claims", []map[string]string{{"type": "b"}, {"type": "c"}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -113,15 +113,15 @@ func TestSyncScopeClaims(t *testing.T) {
 	}
 }
 
-func TestSyncScopePropertiesReplacesChangedValue(t *testing.T) {
+func TestSyncChildrenReplacesChangedValue(t *testing.T) {
 	api := newFakeScopeAPI()
 	c := newTestClient(t, api)
 	ctx := context.Background()
 
-	if err := c.SyncScopeProperties(ctx, 1, map[string]string{"k": "v1", "gone": "x"}); err != nil {
+	if err := c.SyncChildren(ctx, "/api/v1/scopes/1/properties", []map[string]string{{"key": "k", "value": "v1"}, {"key": "gone", "value": "x"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SyncScopeProperties(ctx, 1, map[string]string{"k": "v2"}); err != nil {
+	if err := c.SyncChildren(ctx, "/api/v1/scopes/1/properties", []map[string]string{{"key": "k", "value": "v2"}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,8 +140,19 @@ func TestNotFoundMatchesErrNotFound(t *testing.T) {
 		http.NotFound(w, nil)
 	}))
 
-	_, err := c.GetScopeByName(context.Background(), "missing")
+	_, err := c.ListChildren(context.Background(), "/api/v1/Scopes/by-name/missing")
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
 	}
+}
+
+type ScopeClaim struct {
+	ID   int    `json:"id"`
+	Type string `json:"type"`
+}
+
+type ScopeProperty struct {
+	ID    int    `json:"id"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }

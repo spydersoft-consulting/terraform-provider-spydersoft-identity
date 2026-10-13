@@ -103,6 +103,11 @@ func (p *identityProvider) Configure(ctx context.Context, req provider.Configure
 func (p *identityProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewScopeResource,
+		NewApiResourceResource,
+		NewIdentityResourceResource,
+		NewClientResource,
+		NewClientSecretResource,
+		NewApiResourceSecretResource,
 	}
 }
 

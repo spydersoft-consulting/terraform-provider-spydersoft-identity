@@ -10,11 +10,11 @@ Terraform / OpenTofu provider for the Spydersoft Identity server admin API
 
 | Resource | Status |
 | --- | --- |
-| `spydersoftidentity_scope` (incl. claims, properties) | modelled |
-| `spydersoftidentity_api_resource` | todo |
-| `spydersoftidentity_identity_resource` | todo |
-| `spydersoftidentity_client` | todo |
-| client / API resource secrets (write-only secret handling) | todo |
+| `spydersoftidentity_scope` | done |
+| `spydersoftidentity_api_resource` | done |
+| `spydersoftidentity_identity_resource` | done |
+| `spydersoftidentity_client` | done |
+| `spydersoftidentity_client_secret`, `spydersoftidentity_api_resource_secret` | done |
 
 Sub-resources (redirect URIs, scopes, claims, ...) are value-keyed on the server
 and reject duplicates with `409 Conflict`, so they can be modelled as set

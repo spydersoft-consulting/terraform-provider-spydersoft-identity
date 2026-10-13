@@ -4,17 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/spyder007/terraform-provider-spydersoft-identity/internal/client"
@@ -54,40 +49,16 @@ func (r *scopeResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		Description: "An API scope. Import with the scope name.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:      true,
-				Description:   "Numeric identifier assigned by the server.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"name":         schema.StringAttribute{Required: true, Description: "Unique scope name."},
-			"display_name": schema.StringAttribute{Optional: true, Description: "Name shown on the consent screen."},
-			"description":  schema.StringAttribute{Optional: true, Description: "Description shown on the consent screen."},
-			"enabled": schema.BoolAttribute{
-				Optional: true, Computed: true, Default: booldefault.StaticBool(true),
-				Description: "Whether the scope is enabled.",
-			},
-			"emphasize": schema.BoolAttribute{
-				Optional: true, Computed: true, Default: booldefault.StaticBool(false),
-				Description: "Emphasize the scope on the consent screen.",
-			},
-			"required": schema.BoolAttribute{
-				Optional: true, Computed: true, Default: booldefault.StaticBool(false),
-				Description: "The scope cannot be deselected on the consent screen.",
-			},
-			"show_in_discovery_document": schema.BoolAttribute{
-				Optional: true, Computed: true, Default: booldefault.StaticBool(true),
-				Description: "Whether the scope is listed in the discovery document.",
-			},
-			"user_claims": schema.SetAttribute{
-				ElementType: types.StringType, Optional: true, Computed: true,
-				Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
-				Description: "User claim types included in tokens issued for this scope.",
-			},
-			"properties": schema.MapAttribute{
-				ElementType: types.StringType, Optional: true, Computed: true,
-				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
-				Description: "Custom key/value properties on the scope.",
-			},
+			"id":                         idAttribute(),
+			"name":                       schema.StringAttribute{Required: true, Description: "Unique scope name."},
+			"display_name":               schema.StringAttribute{Optional: true, Description: "Name shown on the consent screen."},
+			"description":                schema.StringAttribute{Optional: true, Description: "Description shown on the consent screen."},
+			"enabled":                    boolWithDefault("Whether the scope is enabled.", true),
+			"emphasize":                  boolWithDefault("Emphasize the scope on the consent screen.", false),
+			"required":                   boolWithDefault("The scope cannot be deselected on the consent screen.", false),
+			"show_in_discovery_document": boolWithDefault("Whether the scope is listed in the discovery document.", true),
+			"user_claims":                stringSetAttribute("User claim types included in tokens issued for this scope."),
+			"properties":                 stringMapAttribute("Custom key/value properties on the scope."),
 		},
 	}
 }
@@ -111,8 +82,8 @@ func (r *scopeResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	created, err := r.client.CreateScope(ctx, plan.toAPI())
-	if err != nil {
+	var created client.Scope
+	if err := r.client.Post(ctx, "/api/v1/Scopes", plan.toAPI(), &created); err != nil {
 		resp.Diagnostics.AddError("Creating scope", err.Error())
 		return
 	}
@@ -120,7 +91,6 @@ func (r *scopeResource) Create(ctx context.Context, req resource.CreateRequest, 
 		resp.Diagnostics.AddError("Setting scope claims/properties", err.Error())
 		return
 	}
-	// Re-read so the state reflects exactly what the server stored.
 	got, err := r.load(ctx, created.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Reading created scope", err.Error())
@@ -136,7 +106,7 @@ func (r *scopeResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	id, err := strconv.Atoi(state.ID.ValueString())
+	id, err := parseID(state.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid scope id", err.Error())
 		return
@@ -161,12 +131,12 @@ func (r *scopeResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	id, err := strconv.Atoi(state.ID.ValueString())
+	id, err := parseID(state.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid scope id", err.Error())
 		return
 	}
-	if err := r.client.UpdateScope(ctx, id, plan.toAPI()); err != nil {
+	if err := r.client.Put(ctx, fmt.Sprintf("/api/v1/Scopes/%d", id), plan.toAPI()); err != nil {
 		resp.Diagnostics.AddError("Updating scope", err.Error())
 		return
 	}
@@ -189,25 +159,61 @@ func (r *scopeResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	id, err := strconv.Atoi(state.ID.ValueString())
+	id, err := parseID(state.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid scope id", err.Error())
 		return
 	}
-	if err := r.client.DeleteScope(ctx, id); err != nil && !errors.Is(err, client.ErrNotFound) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/api/v1/Scopes/%d", id)); err != nil && !errors.Is(err, client.ErrNotFound) {
 		resp.Diagnostics.AddError("Deleting scope", err.Error())
 	}
 }
 
 // ImportState imports by scope name, resolved through the natural-key endpoint.
 func (r *scopeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	got, err := r.client.GetScopeByName(ctx, req.ID)
-	if err != nil {
+	var got client.Scope
+	if err := r.client.Get(ctx, "/api/v1/Scopes/by-name/"+url.PathEscape(req.ID), &got); err != nil {
 		resp.Diagnostics.AddError("Importing scope", err.Error())
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), strconv.Itoa(got.ID))...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), got.Name)...)
+}
+
+// applyChildren reconciles the scope's claims and properties with the plan.
+func (r *scopeResource) applyChildren(ctx context.Context, id int, plan scopeModel) error {
+	if err := syncStringSet(ctx, r.client, fmt.Sprintf("/api/v1/scopes/%d/claims", id), "type", plan.UserClaims); err != nil {
+		return err
+	}
+	return syncProperties(ctx, r.client, fmt.Sprintf("/api/v1/scopes/%d/properties", id), plan.Properties)
+}
+
+// load reads the scope together with its claims and properties.
+func (r *scopeResource) load(ctx context.Context, id int) (scopeModel, error) {
+	var s client.Scope
+	if err := r.client.Get(ctx, fmt.Sprintf("/api/v1/Scopes/%d", id), &s); err != nil {
+		return scopeModel{}, err
+	}
+	claims, err := loadStringSet(ctx, r.client, fmt.Sprintf("/api/v1/scopes/%d/claims", id), "type")
+	if err != nil {
+		return scopeModel{}, err
+	}
+	props, err := loadProperties(ctx, r.client, fmt.Sprintf("/api/v1/scopes/%d/properties", id))
+	if err != nil {
+		return scopeModel{}, err
+	}
+
+	return scopeModel{
+		ID:                      types.StringValue(strconv.Itoa(s.ID)),
+		Name:                    types.StringValue(s.Name),
+		DisplayName:             nullableString(s.DisplayName),
+		Description:             nullableString(s.Description),
+		Enabled:                 types.BoolValue(s.Enabled),
+		Emphasize:               types.BoolValue(s.Emphasize),
+		Required:                types.BoolValue(s.Required),
+		ShowInDiscoveryDocument: types.BoolValue(s.ShowInDiscoveryDocument),
+		UserClaims:              claims,
+		Properties:              props,
+	}, nil
 }
 
 func (m scopeModel) toAPI() client.SaveScope {
@@ -220,79 +226,4 @@ func (m scopeModel) toAPI() client.SaveScope {
 		Required:                m.Required.ValueBool(),
 		ShowInDiscoveryDocument: m.ShowInDiscoveryDocument.ValueBool(),
 	}
-}
-
-// applyChildren reconciles the scope's claims and properties with the plan.
-func (r *scopeResource) applyChildren(ctx context.Context, id int, plan scopeModel) error {
-	var claims []string
-	if diags := plan.UserClaims.ElementsAs(ctx, &claims, false); diags.HasError() {
-		return fmt.Errorf("reading user_claims: %v", diags)
-	}
-	props := map[string]string{}
-	if diags := plan.Properties.ElementsAs(ctx, &props, false); diags.HasError() {
-		return fmt.Errorf("reading properties: %v", diags)
-	}
-
-	if err := r.client.SyncScopeClaims(ctx, id, claims); err != nil {
-		return err
-	}
-	return r.client.SyncScopeProperties(ctx, id, props)
-}
-
-// load reads the scope together with its claims and properties.
-func (r *scopeResource) load(ctx context.Context, id int) (scopeModel, error) {
-	s, err := r.client.GetScope(ctx, id)
-	if err != nil {
-		return scopeModel{}, err
-	}
-	claims, err := r.client.ListScopeClaims(ctx, id)
-	if err != nil {
-		return scopeModel{}, err
-	}
-	props, err := r.client.ListScopeProperties(ctx, id)
-	if err != nil {
-		return scopeModel{}, err
-	}
-
-	m := scopeFromAPI(s)
-	claimVals := make([]attr.Value, 0, len(claims))
-	for _, c := range claims {
-		claimVals = append(claimVals, types.StringValue(c.Type))
-	}
-	m.UserClaims = types.SetValueMust(types.StringType, claimVals)
-	propVals := make(map[string]attr.Value, len(props))
-	for _, p := range props {
-		propVals[p.Key] = types.StringValue(p.Value)
-	}
-	m.Properties = types.MapValueMust(types.StringType, propVals)
-	return m, nil
-}
-
-func scopeFromAPI(s *client.Scope) scopeModel {
-	return scopeModel{
-		ID:                      types.StringValue(strconv.Itoa(s.ID)),
-		Name:                    types.StringValue(s.Name),
-		DisplayName:             nullableString(s.DisplayName),
-		Description:             nullableString(s.Description),
-		Enabled:                 types.BoolValue(s.Enabled),
-		Emphasize:               types.BoolValue(s.Emphasize),
-		Required:                types.BoolValue(s.Required),
-		ShowInDiscoveryDocument: types.BoolValue(s.ShowInDiscoveryDocument),
-	}
-}
-
-func optionalString(v types.String) *string {
-	if v.IsNull() || v.IsUnknown() {
-		return nil
-	}
-	s := v.ValueString()
-	return &s
-}
-
-// nullableString maps the API's empty/absent string to a null Terraform value.
-func nullableString(s string) types.String {
-	if s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(s)
 }
