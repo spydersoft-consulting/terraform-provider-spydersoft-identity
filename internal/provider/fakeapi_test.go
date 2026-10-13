@@ -24,6 +24,8 @@ type fakeIdentity struct {
 	top map[string]map[int]map[string]any
 	// sub-resources: collection/child -> parent id -> items
 	children map[string]map[int][]map[string]any
+	// roles have string ids and live outside the generic collections
+	roles map[string]*fakeRole
 }
 
 const fakeToken = "fake-access-token"
@@ -35,6 +37,7 @@ func startFakeIdentity(t *testing.T) string {
 		nextID:   1,
 		top:      map[string]map[int]map[string]any{},
 		children: map[string]map[int][]map[string]any{},
+		roles:    map[string]*fakeRole{},
 	}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
@@ -107,6 +110,10 @@ func (f *fakeIdentity) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rest, ok := strings.CutPrefix(r.URL.Path, "/api/v1/")
 	if !ok {
 		http.NotFound(w, r)
+		return
+	}
+	if strings.EqualFold(strings.SplitN(rest, "/", 2)[0], "roles") {
+		f.handleRoles(w, r)
 		return
 	}
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
