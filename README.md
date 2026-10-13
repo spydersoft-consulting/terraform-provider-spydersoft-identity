@@ -134,21 +134,32 @@ output "email_scope_claims" {
 ## Acceptance tests
 
 `go test ./...` runs only the unit tests; the acceptance tests skip unless
-`TF_ACC=1`. They create and destroy real `tf-acc-*` objects (scopes, API
-resources, identity resources, a disabled client and secrets) on whatever server
-the `SPYDERSOFT_IDENTITY_*` variables point at, so prefer a local stack.
+`TF_ACC=1`. They drive the provider through a real OpenTofu/Terraform binary and
+cover create, in-place update, data source lookup and import (with state
+verification) for every resource.
+
+**By default they need no server.** The tests start an in-memory fake of the
+identity server's token endpoint and admin API (`internal/provider/fakeapi_test.go`)
+and ignore any `SPYDERSOFT_IDENTITY_*` variables, so they are safe to run
+anywhere and run on every push and PR in CI. The fake mirrors the status codes,
+natural-key lookups, duplicate rejection and write-only secrets the provider
+relies on; it does not reproduce the server's validation or defaults.
 
 ```powershell
-# SPYDERSOFT_IDENTITY_* set as in "Local development"
 $env:TF_ACC = "1"
-$env:TF_ACC_TERRAFORM_PATH   = (Get-Command tofu).Source   # OpenTofu
+$env:TF_ACC_TERRAFORM_PATH     = (Get-Command tofu).Source   # OpenTofu
 $env:TF_ACC_PROVIDER_NAMESPACE = "hashicorp"
 $env:TF_ACC_PROVIDER_HOST      = "registry.opentofu.org"
 go test ./internal/provider -count=1 -v
 ```
 
-With HashiCorp Terraform, leave the three `TF_ACC_*` provider/path variables
-unset (or point `TF_ACC_TERRAFORM_PATH` at `terraform`). Each test covers
-create, in-place update, data source lookup and import (with state
-verification). A failed run can leave `tf-acc-*` objects behind; delete them in
-the admin UI.
+With HashiCorp Terraform, leave `TF_ACC_PROVIDER_NAMESPACE` and
+`TF_ACC_PROVIDER_HOST` unset and point `TF_ACC_TERRAFORM_PATH` at `terraform`.
+
+**Against a real server** (to catch drift between the fake and the real API),
+also set `TF_ACC_LIVE=1` and the four `SPYDERSOFT_IDENTITY_*` variables. This
+creates and destroys `tf-acc-*` objects (scopes, API resources, identity
+resources, a disabled client and secrets) on that server, so prefer a local
+stack. A failed live run can leave `tf-acc-*` objects behind; delete them in the
+admin UI. In CI the live run is manual only: run the CI workflow with the
+`acceptance` input and an `acceptance` environment holding the secrets.

@@ -52,10 +52,26 @@ jobs:
       - name: Unit tests
         run: go test ./... -count=1 -race
 
-  # Acceptance tests create and delete real objects, so they never run on
-  # push/PR. Trigger them by hand against a server you are happy to modify.
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      # Drives the provider through a real OpenTofu binary against an in-memory
+      # fake of the identity server (no server needed).
+      - name: Acceptance tests (fake server)
+        env:
+          TF_ACC: "1"
+          TF_ACC_PROVIDER_NAMESPACE: hashicorp
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+        run: |
+          export TF_ACC_TERRAFORM_PATH="$(which tofu)"
+          go test ./internal/provider -count=1 -v
+
+  # The same acceptance tests against a real identity server. They create and
+  # delete real tf-acc-* objects, so they never run on push/PR; trigger them by
+  # hand against a server you are happy to modify.
   acceptance:
-    name: Acceptance tests
+    name: Acceptance tests (live server)
     if: github.event_name == 'workflow_dispatch' && inputs.acceptance
     needs: build
     runs-on: ubuntu-latest
@@ -74,6 +90,7 @@ jobs:
       - name: Acceptance tests
         env:
           TF_ACC: "1"
+          TF_ACC_LIVE: "1"
           TF_ACC_PROVIDER_NAMESPACE: hashicorp
           TF_ACC_PROVIDER_HOST: registry.opentofu.org
           SPYDERSOFT_IDENTITY_URL: ${{ secrets.SPYDERSOFT_IDENTITY_URL }}
