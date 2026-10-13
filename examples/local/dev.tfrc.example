@@ -1,0 +1,9 @@
+# Copy to dev.tfrc (git-ignored), set the path to your Go bin directory
+# (`go env GOBIN`, or `<GOPATH>\bin`), then:
+#   $env:TF_CLI_CONFIG_FILE = "$PWD\dev.tfrc"
+provider_installation {
+  dev_overrides {
+    "registry.terraform.io/spyder007/spydersoft-identity" = "C:/Users/<you>/go/bin"
+  }
+  direct {}
+}

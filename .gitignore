@@ -1,0 +1,18 @@
+# Binaries
+/terraform-provider-spydersoft-identity
+*.exe
+dist/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+terraform.tfvars
+dev.tfrc
+
+# IDE
+.idea/
+.vscode/
+examples/local/dev.tfrc
+.env
