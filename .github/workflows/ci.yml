@@ -52,6 +52,17 @@ jobs:
       - name: Unit tests
         run: go test ./... -count=1 -race
 
+      - name: Check generated docs are up to date
+        run: |
+          go generate ./...
+          git diff --exit-code docs
+          untracked=$(git ls-files --others --exclude-standard docs)
+          if [ -n "$untracked" ]; then
+            echo "Untracked generated docs (run 'go generate ./...' and commit):"
+            echo "$untracked"
+            exit 1
+          fi
+
       - uses: opentofu/setup-opentofu@v2
         with:
           tofu_wrapper: false

@@ -1,3 +1,6 @@
+// Regenerate docs/ from the provider schema and examples/ (run `go generate ./...`).
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.25.0 generate --provider-name spydersoftidentity --rendered-provider-name "Spydersoft Identity"
+
 package main
 
 import (

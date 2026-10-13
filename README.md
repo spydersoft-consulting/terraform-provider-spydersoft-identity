@@ -163,3 +163,50 @@ resources, a disabled client and secrets) on that server, so prefer a local
 stack. A failed live run can leave `tf-acc-*` objects behind; delete them in the
 admin UI. In CI the live run is manual only: run the CI workflow with the
 `acceptance` input and an `acceptance` environment holding the secrets.
+
+## Releasing
+
+Releases are built by GoReleaser when a version tag is pushed
+(`.github/workflows/release.yml`). The workflow produces a zip per
+OS/architecture, a `SHA256SUMS` file, a detached GPG signature of it, and
+`terraform-registry-manifest.json`, and attaches them to a GitHub release. Both
+registries read those release assets.
+
+### One-time setup
+
+1. **Signing key.** Create a dedicated GPG key (RSA or ECC, no expiry or a long
+   one) and export it:
+
+   ```sh
+   gpg --full-generate-key
+   gpg --armor --export-secret-keys <KEY_ID> > private.asc   # keep this secret
+   gpg --armor --export <KEY_ID> > public.asc
+   ```
+
+2. **GitHub secrets** (repo Settings, Secrets and variables, Actions):
+   `GPG_PRIVATE_KEY` (contents of `private.asc`) and `GPG_PASSPHRASE`.
+3. **Terraform Registry.** Sign in at <https://registry.terraform.io> with GitHub,
+   add `public.asc` under User Settings, Signing Keys for the
+   `spydersoft-consulting` namespace, then Publish, Provider, and pick this repo.
+   New tags are ingested automatically through a webhook.
+4. **OpenTofu Registry.** Submit the provider with the "Provider" issue form on
+   <https://github.com/opentofu/registry/issues> (include the public key). New
+   releases are then picked up from GitHub.
+
+### Cutting a release
+
+```sh
+go generate ./...     # docs must be current (CI checks this)
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Versions follow semantic versioning and must be tagged `vMAJOR.MINOR.PATCH`.
+Record notable changes in `CHANGELOG.md` first. To test packaging without
+publishing: `go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --skip=sign,publish --clean`.
+
+### Before the first public release
+
+The registry namespace is the GitHub org name and does not follow a rename. Settle
+the org name (see the org-rename plan) before registering the provider; after
+that the module path, `Address` in `main.go` and the doc examples must match.
