@@ -106,6 +106,7 @@ func (p *identityProvider) Resources(_ context.Context) []func() resource.Resour
 		NewApiResourceResource,
 		NewIdentityResourceResource,
 		NewClientResource,
+		NewRoleResource,
 		NewClientSecretResource,
 		NewApiResourceSecretResource,
 	}
@@ -117,6 +118,7 @@ func (p *identityProvider) DataSources(_ context.Context) []func() datasource.Da
 		NewApiResourceDataSource,
 		NewIdentityResourceDataSource,
 		NewClientDataSource,
+		NewRoleDataSource,
 	}
 }
 

@@ -8,6 +8,9 @@ All notable changes to this provider are documented here. The format follows
 
 ### Added
 
+- Resource `spydersoftidentity_role` (name and claims, import by name) and data source
+  `spydersoftidentity_role`. Role claim types must not contain `/`: the admin API
+  cannot delete such a claim, so the provider rejects them at plan time.
 - Resources: `spydersoftidentity_scope`, `spydersoftidentity_api_resource`,
   `spydersoftidentity_identity_resource`, `spydersoftidentity_client`,
   `spydersoftidentity_client_secret`, `spydersoftidentity_api_resource_secret`.

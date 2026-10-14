@@ -27,53 +27,85 @@ type lookupDataSource struct {
 	typeSuffix  string // e.g. "_scope"
 	description string
 	lookupAttr  string // natural-key attribute, e.g. "name" or "client_id"
-	byKeyPath   string // lookup endpoint prefix, e.g. "/api/v1/Scopes/by-name/"
 	newResource func() resource.Resource
-	// load reads the full model for a server id using the resource's load logic.
-	load   func(ctx context.Context, c *client.Client, id int) (any, error)
+	// read finds the object by its natural key and returns the resource's
+	// full model for it.
+	read   func(ctx context.Context, c *client.Client, key string) (any, error)
 	client *client.Client
+}
+
+// byNaturalKey builds a read function for objects that have a by-key endpoint
+// returning at least their numeric id, then loads them with the resource's
+// load logic.
+func byNaturalKey(byKeyPath string, load func(ctx context.Context, c *client.Client, id int) (any, error)) func(context.Context, *client.Client, string) (any, error) {
+	return func(ctx context.Context, c *client.Client, key string) (any, error) {
+		var found struct {
+			ID int `json:"id"`
+		}
+		if err := c.Get(ctx, byKeyPath+url.PathEscape(key), &found); err != nil {
+			return nil, err
+		}
+		return load(ctx, c, found.ID)
+	}
 }
 
 func NewScopeDataSource() datasource.DataSource {
 	return &lookupDataSource{
 		typeSuffix: "_scope", description: "Looks up an API scope by name.",
-		lookupAttr: "name", byKeyPath: "/api/v1/Scopes/by-name/",
+		lookupAttr:  "name",
 		newResource: NewScopeResource,
-		load: func(ctx context.Context, c *client.Client, id int) (any, error) {
+		read: byNaturalKey("/api/v1/Scopes/by-name/", func(ctx context.Context, c *client.Client, id int) (any, error) {
 			return (&scopeResource{client: c}).load(ctx, id)
-		},
+		}),
 	}
 }
 
 func NewApiResourceDataSource() datasource.DataSource {
 	return &lookupDataSource{
 		typeSuffix: "_api_resource", description: "Looks up an API resource by name.",
-		lookupAttr: "name", byKeyPath: "/api/v1/ApiResources/by-name/",
+		lookupAttr:  "name",
 		newResource: NewApiResourceResource,
-		load: func(ctx context.Context, c *client.Client, id int) (any, error) {
+		read: byNaturalKey("/api/v1/ApiResources/by-name/", func(ctx context.Context, c *client.Client, id int) (any, error) {
 			return (&apiResourceResource{client: c}).load(ctx, id)
-		},
+		}),
 	}
 }
 
 func NewIdentityResourceDataSource() datasource.DataSource {
 	return &lookupDataSource{
 		typeSuffix: "_identity_resource", description: "Looks up an identity resource by name.",
-		lookupAttr: "name", byKeyPath: "/api/v1/IdentityResources/by-name/",
+		lookupAttr:  "name",
 		newResource: NewIdentityResourceResource,
-		load: func(ctx context.Context, c *client.Client, id int) (any, error) {
+		read: byNaturalKey("/api/v1/IdentityResources/by-name/", func(ctx context.Context, c *client.Client, id int) (any, error) {
 			return (&identityResourceResource{client: c}).load(ctx, id)
-		},
+		}),
 	}
 }
 
 func NewClientDataSource() datasource.DataSource {
 	return &lookupDataSource{
 		typeSuffix: "_client", description: "Looks up a client by its OAuth client_id.",
-		lookupAttr: "client_id", byKeyPath: "/api/v1/Clients/by-client-id/",
+		lookupAttr:  "client_id",
 		newResource: NewClientResource,
-		load: func(ctx context.Context, c *client.Client, id int) (any, error) {
+		read: byNaturalKey("/api/v1/Clients/by-client-id/", func(ctx context.Context, c *client.Client, id int) (any, error) {
 			return (&clientResource{client: c}).load(ctx, id)
+		}),
+	}
+}
+
+// NewRoleDataSource looks a role up by name. The API has no by-name endpoint,
+// so the role list is searched.
+func NewRoleDataSource() datasource.DataSource {
+	return &lookupDataSource{
+		typeSuffix: "_role", description: "Looks up a role by name.",
+		lookupAttr:  "name",
+		newResource: NewRoleResource,
+		read: func(ctx context.Context, c *client.Client, key string) (any, error) {
+			role, err := c.FindRoleByName(ctx, key)
+			if err != nil {
+				return nil, err
+			}
+			return (&roleResource{client: c}).load(ctx, role.ID)
 		},
 	}
 }
@@ -112,16 +144,9 @@ func (d *lookupDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	var found struct {
-		ID int `json:"id"`
-	}
-	if err := d.client.Get(ctx, d.byKeyPath+url.PathEscape(key.ValueString()), &found); err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Looking up %s %q", d.lookupAttr, key.ValueString()), err.Error())
-		return
-	}
-	model, err := d.load(ctx, d.client, found.ID)
+	model, err := d.read(ctx, d.client, key.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Reading "+d.typeSuffix[1:], err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Reading %s %q", d.typeSuffix[1:], key.ValueString()), err.Error())
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
